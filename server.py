@@ -5,7 +5,7 @@ from flask import request
 from flask import Response
 import json
 import hashlib
-
+from bson.objectid import ObjectId
 
 from Database.MongoDatabaseConnection import Database
 from utils import utils
@@ -55,22 +55,24 @@ def user():
         payload["company"] = company
         payload["partners"] = partners
         payload["delivery"] = delivery
-        payload["products"] = 0
+        payload["products"] = len(dB.query("product", {"user": id}, {'_id': False})) + len(dB.query("delivery", {"user": id}, {'_id': False}))
         payload["storage"] = len(dB.query("product", {"user": id}, {'_id': False}))
         payload["image"] = image
         return Response(json.dumps(payload),  status=200, mimetype='application/json')
 
 
-@app.route('/product', methods=['GET', 'POST'])
+@app.route('/products', methods=['GET', 'POST'])
 @auth.login_required
-def product():
+def products():
     body = request.json
     id = body["id"]
     result = dB.query("product", {"user": id}, {'_id': False})
+    payload = {}
+    payload["products"] = result
     if result == None:
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
     else:
-        return Response(json.dumps(result),  status=200, mimetype='application/json')
+        return Response(json.dumps(payload),  status=200, mimetype='application/json')
         
 @app.route('/storage', methods=['GET', 'POST'])
 @auth.login_required
@@ -83,6 +85,25 @@ def storage():
     if result == None:
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
     else:
+        return Response(json.dumps(payload),  status=200, mimetype='application/json')
+
+@app.route('/partners', methods=['GET', 'POST'])
+@auth.login_required
+def partners():
+    body = request.json
+    id = body["id"]
+    result = dB.get("user", id)
+    if result == None:
+        return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
+    else:         
+        print(result)      
+        partners = result["partners"]
+        partnerData = []
+        for i in range(len(partners)):
+            partnerData.append(dB.query("user", {"_id": partners[i]}, {'_id': False})[0])
+        print(partnerData)
+        payload = {}
+        payload["partners"] = partnerData
         return Response(json.dumps(payload),  status=200, mimetype='application/json')
         
 @app.route('/updateProfilePhoto', methods=['GET', 'POST'])
@@ -122,6 +143,38 @@ def signup():
         return Response(json.dumps({'a':'b'}),  status=200, mimetype='application/json')
     except:
         return Response(json.dumps({'a':'b'}),  status=409, mimetype='application/json')
+        
+
+@app.route('/addPartner', methods=['GET', 'POST'])
+@auth.login_required
+def addPartner():
+    body = request.json
+    payload = {}
+    
+    adminId = body["id"]
+    username = body["username"]
+    password = body["password"]
+    company = body["company"]
+    role = body["role"]
+      
+    payload["username"] = username
+    payload["password"] = password
+    payload["company"] = company
+    payload["role"] = role
+    payload["count"] = 0
+    payload["partners"] = []
+    payload["delivery"] = []
+    payload["image"] = "https://fhsakaci.s3.fr-par.scw.cloud/images/no-image.png"
+    result = dB.insert("user", payload)
+    partnetId = result
+    adminUser = dB.get("user", adminId)
+    partners = adminUser["partners"]
+    partners.append(partnetId)
+    adminUser["partners"] = partners
+    dB.update("user", adminId, adminUser)
+        
+    return Response(json.dumps({'a':'b'}),  status=200, mimetype='application/json')
+
 
 @app.route('/addProduct', methods=['GET', 'POST'])
 @auth.login_required
