@@ -72,6 +72,7 @@ def products():
     result = dB.query("product", {"user": id})
     for i in range(len(result)):
         result[i]["id"] = str(result[i].pop("_id"))
+        result[i]["piece"] = dB.query("storage", {"productId": result[i]["id"]})[0]["piece"]
     payload = {}
     payload["products"] = result
     if result == None:
@@ -87,6 +88,7 @@ def storage():
     result = dB.query("product", {"user": id})
     for i in range(len(result)):
         result[i]["id"] = str(result[i].pop("_id"))
+        result[i]["piece"] = dB.query("storage", {"productId": result[i]["id"]})[0]["piece"]
     payload = {}
     payload["products"] = result
     if result == None:
@@ -103,14 +105,12 @@ def partners():
     if result == None:
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
     else:         
-        print(result)      
         partners = result["partners"]
         partnerData = []
         for i in range(len(partners)):
             partner = dB.get("user", partners[i])
             partner["id"] = str(partner.pop("_id"))
             partnerData.append(partner)
-        print(partnerData)
         payload = {}
         payload["partners"] = partnerData
         return Response(json.dumps(payload),  status=200, mimetype='application/json')
@@ -255,7 +255,7 @@ def addProduct():
     else:
         name = body["name"]
         modelNo = body["modelNo"]
-        total = body["total"]
+        piece = body["piece"]
         year = body["year"]
         description = body["description"]
         image = body["image"]
@@ -264,12 +264,18 @@ def addProduct():
         payload["user"] = str(id)
         payload["name"] = name
         payload["modelNo"] = modelNo
-        payload["total"] = total
         payload["year"] = year
         payload["image"] = image
         payload["description"] = description
-        
-        dB.insert("product", payload)
+        productId = dB.insert("product", payload)
+
+
+
+        payload = {}
+        payload["userId"] = str(id)
+        payload["productId"] = str(productId)
+        payload["piece"] = piece
+        dB.insert("storage", payload)
         return Response(status=200, mimetype='application/json')
 
 @auth.verify_password
