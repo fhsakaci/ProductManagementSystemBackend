@@ -49,15 +49,17 @@ def user():
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
     else:
         image = result["image"]
+        role = result["role"]
         company = result["company"]                
         partners = len(result["partners"])
-        deliveryFrom = dB.query("delivery", {"fromId": id})
-        deliveryTo = dB.query("delivery", {"toId": id})
+        deliveryFrom = dB.query("delivery", {"fromId": id, "activity": True })
+        deliveryTo = dB.query("delivery", {"toId": id, "activity": True})
         delivery = len(deliveryFrom) + len(deliveryTo)
         payload = {}
         payload["company"] = company
         payload["partners"] = partners
         payload["delivery"] = delivery
+        payload["role"] = role
         payload["products"] = len(dB.query("product", {"user": id}, {'_id': False})) + delivery
         payload["storage"] = len(dB.query("product", {"user": id}, {'_id': False}))
         payload["image"] = image
@@ -85,15 +87,19 @@ def products():
 def storage():
     body = request.json
     id = body["id"]
-    result = dB.query("product", {"user": id})
-    for i in range(len(result)):
-        result[i]["id"] = str(result[i].pop("_id"))
-        result[i]["piece"] = dB.query("storage", {"productId": result[i]["id"]})[0]["piece"]
-    payload = {}
-    payload["products"] = result
+    result = dB.query("storage", {"userId": id})
     if result == None:
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
     else:
+        products = []
+        for i in range(len(result)):
+            product = dB.get("product", (result[i]["productId"]))
+            product["id"] = str(product.pop("_id"))
+            product["piece"] = result[i]["piece"]
+            products.append(product)
+
+        payload = {}
+        payload["products"] = products
         return Response(json.dumps(payload),  status=200, mimetype='application/json')
 
 @app.route('/partners', methods=['GET', 'POST'])
@@ -104,27 +110,47 @@ def partners():
     result = dB.get("user", id)
     if result == None:
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
-    else:         
-        partners = result["partners"]
-        partnerData = []
-        for i in range(len(partners)):
-            partner = dB.get("user", partners[i])
-            partner["id"] = str(partner.pop("_id"))
-            partnerData.append(partner)
-        payload = {}
-        payload["partners"] = partnerData
-        return Response(json.dumps(payload),  status=200, mimetype='application/json')
+    else:
+        if result["role"] == "admin":
+            partners = result["partners"]
+            partnerData = []
+            for i in range(len(partners)):
+                partner = dB.get("user", partners[i])
+                partner["id"] = str(partner.pop("_id"))
+                partnerData.append(partner)
+            payload = {}
+            payload["partners"] = partnerData
+            return Response(json.dumps(payload),  status=200, mimetype='application/json')
+        else:
+            adminId = result["adminId"]
+            adminUser = dB.get("user", adminId)
+            adminUser["id"] = str(adminUser.pop("_id"))
+            adminUser.pop("password")
+            partners = adminUser.pop("partners")
+
+            partnerData = []
+            partnerData.append(adminUser)
+            for i in range(len(partners)):
+                partner = dB.get("user", partners[i])
+                partner["id"] = str(partner.pop("_id"))
+                if partner["id"] != id:
+                    partnerData.append(partner)
+            payload = {}
+            payload["partners"] = partnerData
+            print(partnerData)
+            return Response(json.dumps(payload),  status=200, mimetype='application/json')
+            
 
 @app.route('/deliveries', methods=['GET', 'POST'])
 @auth.login_required
 def deliveries():
     body = request.json
     id = body["id"]
-    deliveryFrom = dB.query("delivery", {"fromId": id})
-    deliveryTo = dB.query("delivery", {"toId": id})
+    deliveryFrom = dB.query("delivery", {"fromId": id, "activity": True})
+    deliveryTo = dB.query("delivery", {"toId": id, "activity": True})
     deliveryOwner = dB.query("delivery", {"ownerId": id})
 
-    if deliveryFrom == None and deliveryTo == None:
+    if deliveryFrom == None and deliveryTo == None and deliveryOwner == None:
         return Response(json.dumps({'a':'b'}), status=401, mimetype='application/json')
     else:
         for i in range(len(deliveryFrom)):
@@ -206,6 +232,7 @@ def addPartner():
     payload["password"] = password
     payload["company"] = company
     payload["role"] = role
+    payload["adminId"] = adminId
     payload["count"] = 0
     payload["partners"] = []
     payload["image"] = "https://fhsakaci.s3.fr-par.scw.cloud/images/no-image.png"
@@ -225,11 +252,16 @@ def addDelivery():
     body = request.json
     
     productId = body["productId"]
-    ownerId = body["ownerId"]
+    product = dB.get("product", productId)
+    ownerId = product["user"]
     fromId = body["fromId"]
     toId = body["toId"]
-    piece = body["piece"]
+    piece = int(body["piece"])
     description = body["description"]
+
+    storageProduct = dB.query("storage", {"productId":productId, "userId": fromId})[0]
+    totalPiece = int(storageProduct["piece"]) - int(piece)
+    dB.update("storage", storageProduct["_id"], {"piece": totalPiece})
 
     payload = {}
     payload["productId"] = productId
@@ -255,7 +287,7 @@ def addProduct():
     else:
         name = body["name"]
         modelNo = body["modelNo"]
-        piece = body["piece"]
+        piece = int(body["piece"])
         year = body["year"]
         description = body["description"]
         image = body["image"]
@@ -269,14 +301,48 @@ def addProduct():
         payload["description"] = description
         productId = dB.insert("product", payload)
 
-
-
         payload = {}
         payload["userId"] = str(id)
         payload["productId"] = str(productId)
         payload["piece"] = piece
         dB.insert("storage", payload)
         return Response(status=200, mimetype='application/json')
+
+
+@app.route('/finishDelivery', methods=['GET', 'POST'])
+@auth.login_required
+def finishDelivery():
+    body = request.json
+    userId = body["userId"]
+    deliveryId = body["deliveryId"]
+    piece = int(body["piece"])
+    description = body["description"]
+
+    delivery = dB.get("delivery", deliveryId)
+    productId = delivery["productId"]
+    deliveryOwner = delivery["ownerId"]
+    
+    
+    deliveryProduct = dB.query("storage", {"productId": productId, "userId": userId})
+    if deliveryProduct == []:
+        payload = {}
+        payload["userId"] = str(userId)
+        payload["productId"] = str(productId)
+        payload["piece"] = piece
+        dB.insert("storage", payload)
+        dB.update("delivery", deliveryId, {"activity": False})
+        return Response(status=200, mimetype='application/json')
+    else:
+        deliveryProduct = deliveryProduct[0]
+        dB.update("storage", str(deliveryProduct["_id"]), {"piece": int(deliveryProduct["piece"]) + piece})
+        dB.update("delivery", deliveryId, {"activity": False})
+        if int(delivery["piece"]) - piece != 0:
+            delivery.pop("_id")
+            delivery["piece"] = int(delivery["piece"]) - piece
+            dB.insert("delivery", delivery)
+        return Response(status=200, mimetype='application/json')
+
+
 
 @auth.verify_password
 def verify_password(username, password):
