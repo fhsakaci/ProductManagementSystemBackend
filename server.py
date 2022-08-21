@@ -331,6 +331,10 @@ def finishDelivery():
         payload["piece"] = piece
         dB.insert("storage", payload)
         dB.update("delivery", deliveryId, {"activity": False})
+        if int(delivery["piece"]) - piece != 0:
+            delivery.pop("_id")
+            delivery["piece"] = int(delivery["piece"]) - piece
+            dB.insert("delivery", delivery)
         return Response(status=200, mimetype='application/json')
     else:
         deliveryProduct = deliveryProduct[0]
@@ -352,4 +356,4 @@ def verify_password(username, password):
 
 if __name__ == '__main__':
     print('Starting app')
-    app.run(host='0.0.0.0', debug=True, port=8080)
+    app.run(host='0.0.0.0', debug=True, port=8081)
