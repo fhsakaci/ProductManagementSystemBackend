@@ -10,6 +10,7 @@ import datetime
 
 from Database.MongoDatabaseConnection import Database
 from utils import utils
+from User import User
 
 
 logger = utils.set_logger( __name__, __file__ )
@@ -26,6 +27,8 @@ users = {
 }
 
 
+us = User.User(dB)
+
 app = Flask(__name__)
 @app.route('/login', methods=['GET', 'POST'])
 @auth.login_required
@@ -33,7 +36,7 @@ def login():
     payload = request.json
     username = payload["username"]
     password = payload["password"]
-    result = dB.SearchUser("user", username, password)
+    result = us.control(username, password)
     if result == False:
         return Response(status=401, mimetype='application/json')
     else:

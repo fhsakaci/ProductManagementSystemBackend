@@ -1,7 +1,7 @@
 from utils import utils
 
-class Delivery:
-    databaseName = "Delivery"
+class User:
+    databaseName = "User"
     def __init__(self, dB):
         self.dB = dB
         self.logger = utils.get_logger()
@@ -10,7 +10,7 @@ class Delivery:
         return self.dB.get(self.databaseName, id)
 
     def control(self, username, password):
-        pass
+        return self.dB.SearchUser("user", username, password)
 
     def insert(self, payload):
         pass
