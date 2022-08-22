@@ -15,7 +15,7 @@ class Database:
 
         client = pymongo.MongoClient(self.host,self.port)
         mongoDB = client[self.DBname]
-        mongoDB.authenticate(self.username, self.password)
+        #mongoDB.authenticate(self.username, self.password)
         self.mongoDB=mongoDB
 
         self.logger = utils.get_logger()

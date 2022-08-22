@@ -35,7 +35,7 @@ def save_prev_log(path):
         tar = tarfile.open(tar_path, "w:gz")
         tar.add(path)
         tar.close()
-        os.remove(path)
+        #os.remove(path)
 
 
 def remove_older_logs(log_file_path, older_than_in_hours):
