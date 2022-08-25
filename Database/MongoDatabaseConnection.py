@@ -1,13 +1,27 @@
 import pymongo
-from utils import utils
 from bson.objectid import ObjectId
+from utils import utils
 
-class Database:
+class Database():
+    __instance = None
+
+    @staticmethod 
+    def getInstance():
+        """ Static access method. """
+        if Database.__instance == None:
+            Database()
+        return Database.__instance
+
+
     def __init__(self,host,port):
-        self.host=host
-        self.port=port
+        if Database.__instance != None:
+            raise Exception("This class is a singleton!")
+        else:
+            self.host=host
+            self.port=port
+            Database.__instance = self
         
-    
+        
     def Connect(self,username,password,DBname):
         self.username=username
         self.password=password
