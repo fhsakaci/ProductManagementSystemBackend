@@ -1,9 +1,10 @@
 from utils import utils
+from Database.MongoDatabaseConnection import Database
 
 class User:
     databaseName = "User"
-    def __init__(self, dB):
-        self.dB = dB
+    def __init__(self):
+        self.dB = Database.getInstance()
         self.logger = utils.get_logger()
     
     def get(self, id):
